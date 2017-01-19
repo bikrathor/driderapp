@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "657810422992",
+    "firebase_url": "https://drider-14e5b.firebaseio.com",
+    "project_id": "drider-14e5b",
+    "storage_bucket": "drider-14e5b.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:657810422992:android:8d92b599b61e8632",
+        "android_client_info": {
+          "package_name": "com.app.drider"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "657810422992-eqpo7ulck6likr0gncchcl637s16eg8e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-iESXyCHyW57LuL6QFXRIV_md-0mNdYk"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
