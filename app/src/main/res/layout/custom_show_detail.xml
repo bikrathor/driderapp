@@ -2,6 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:padding="10dp">
 
     <ImageView
@@ -22,6 +23,20 @@
         android:layout_marginTop="5dp"
         android:gravity="bottom"
         android:orientation="vertical">
+
+        <com.pkmmte.view.CircularImageView
+            android:id="@+id/circularImageProfileTab"
+            android:layout_width="150dp"
+            android:layout_height="80dp"
+            android:layout_gravity="center"
+            android:layout_marginBottom="10dp"
+            android:layout_marginLeft="28dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/icon_user"
+            app:border="true"
+            app:border_color="#EEEEEE"
+            app:border_width="2dp"
+            app:shadow="true" />
 
         <TextView
             android:id="@+id/headerTextDetail"

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/parent"
+    android:layout_width="match_parent"
+    android:background="@color/colorPrimary"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <ImageView
+        android:layout_width="wrap_content"
+        android:layout_height="95dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="23dp"
+        android:layout_marginTop="60dp"
+        android:src="@drawable/icon_color_car" />
+
+    <LinearLayout
+        android:background="@drawable/back_rectangle"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginLeft="38dp"
+        android:layout_marginRight="38dp"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal"
+        android:weightSum="100">
+
+        <EditText
+            android:id="@+id/input_email_forgot"
+            android:layout_width="0dp"
+            android:background="@null"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:layout_marginLeft="5dp"
+            android:layout_weight="100"
+            android:textSize="14dp"
+            android:hint="Enter your e-mail"
+            android:inputType="textEmailAddress"
+            android:paddingLeft="5dp"
+            android:textColor="#000" />
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/forgotButton"
+        style="?android:attr/buttonStyleSmall"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_marginLeft="38dp"
+        android:layout_marginRight="38dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="30dp"
+        android:background="@drawable/back_button_round_green"
+        android:text="Send Password Reset"
+        android:textColor="#ffff" />
+
+    <TextView
+        android:id="@+id/signTxt"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="15dp"
+        android:text="Login?"
+        android:textColor="#fff" />
+
+</LinearLayout>

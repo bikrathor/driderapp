@@ -7,13 +7,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
-import android.location.Address;
-import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.Uri;
-import android.os.AsyncTask;
+import android.os.Handler;
 import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AlertDialog;
@@ -37,6 +35,8 @@ import com.akexorcist.googledirection.GoogleDirection;
 import com.akexorcist.googledirection.constant.TransportMode;
 import com.akexorcist.googledirection.model.Direction;
 import com.akexorcist.googledirection.util.DirectionConverter;
+import com.app.drider.managers.AppData;
+import com.app.drider.managers.UserSessionManager;
 import com.firebase.geofire.GeoFire;
 import com.firebase.geofire.GeoLocation;
 import com.firebase.geofire.GeoQuery;
@@ -65,8 +65,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
@@ -74,12 +72,11 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.google.maps.android.ui.IconGenerator;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+
+import static com.app.drider.managers.UserSessionManager.TAG_uuid;
 
 public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener, LocationListener, OnMapReadyCallback {
@@ -92,18 +89,18 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
     int PLACE_AUTOCOMPLETE_REQUEST_CODE = 1;
     private GoogleMap mMap;
     private Location location;
-    private String result = null;
     private LocationRequest mLocationRequest;
     private Location mLastLocation;
     private Marker myMarker;
     private String source = "normal";
     private TextView enterLoc;
     private String ServerKey = "AIzaSyCgyRDXUhxRFzaohusDyLY4iyvoxdMVFgI";
-    private Button searchBtn;
+    private Button rideBtn;
     private ProgressDialog pDialog;
     private DatabaseReference mFirebaseDatabase;
     private float dis;
     private android.app.AlertDialog.Builder builder;
+    private boolean doubleBackToExitPressedOnce = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,7 +110,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         session = new UserSessionManager(getApplicationContext());
         HashMap<String, String> user = session.getUserDetails();
 
-        id = user.get(UserSessionManager.TAG_uuid);
+        id = user.get(TAG_uuid);
         email = user.get(UserSessionManager.TAG_mail);
         name = user.get(UserSessionManager.TAG_fullname);
         num = user.get(UserSessionManager.TAG_number);
@@ -125,10 +122,10 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         img = (ImageView) findViewById(R.id.imageView);
         img2 = (ImageView) findViewById(R.id.imageView2);
         enterLoc = (TextView) findViewById(R.id.input_location);
-        searchBtn = (Button) findViewById(R.id.button2);
+        rideBtn = (Button) findViewById(R.id.button2);
 
         if (role.equals("driver"))
-            searchBtn.setText("Ride");
+            rideBtn.setText("Ride");
 
         mapFragment.getMapAsync(this);
 
@@ -192,10 +189,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                     loc.setLatitude(latLong.latitude);
                     loc.setLongitude(latLong.longitude);
 
-                    //                updateMyLocation(mMap, loc);
                     enterLoc.setText(place.getName());
-                    //                location = loc;
-                    //                new MainActivity.PostData().execute();
 
                     final LatLng sourcePosition = new LatLng(location.getLatitude(), location.getLongitude());
                     GoogleDirection.withServerKey(ServerKey)
@@ -222,157 +216,111 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                                         CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, padding);
                                         mMap.animateCamera(cu);
 
-                                        searchBtn.setVisibility(View.VISIBLE);
-                                        searchBtn.setOnClickListener(new View.OnClickListener() {
+                                        rideBtn.setVisibility(View.VISIBLE);
+                                        rideBtn.setOnClickListener(new View.OnClickListener() {
                                             @Override
                                             public void onClick(View view) {
-                                                pDialog = new ProgressDialog(MainActivity.this);
-                                                pDialog.setMessage("Starting ride..");
-                                                pDialog.setIndeterminate(false);
-                                                pDialog.setCancelable(true);
-                                                pDialog.show();
+                                                if (isNetwork()) {
+                                                    pDialog = new ProgressDialog(MainActivity.this);
+                                                    pDialog.setMessage("Loading..");
+                                                    pDialog.setIndeterminate(false);
+                                                    pDialog.setCancelable(true);
+                                                    pDialog.show();
 
-                                                if (role.equals("driver")) {
-                                                    DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("/users/" + role + "/" + id);
-                                                    databaseReference.child("location").setValue(enterLoc.getText().toString());
-
-                                                    DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/target");
-                                                    GeoFire geoFire = new GeoFire(ref);
-                                                    geoFire.setLocation(id, new GeoLocation(latLong.latitude, latLong.longitude), new GeoFire.CompletionListener() {
-                                                        @Override
-                                                        public void onComplete(String key, DatabaseError error) {
-                                                            DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/current");
-                                                            GeoFire geoFire = new GeoFire(ref);
-                                                            geoFire.setLocation(id, new GeoLocation(location.getLatitude(), location.getLongitude()), new GeoFire.CompletionListener() {
-                                                                @Override
-                                                                public void onComplete(String key, DatabaseError error) {
-                                                                    pDialog.dismiss();
-                                                                    Toast.makeText(MainActivity.this, "Submitted to server", Toast.LENGTH_SHORT).show();
-                                                                    searchBtn.setText("Stop ride");
-                                                                }
-                                                            });
-                                                        }
-                                                    });
-
-                                                    mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("geofire/interested/" + id);
-                                                    GeoFire geoFire2 = new GeoFire(mFirebaseDatabase);
-                                                    GeoQuery geoQuery = geoFire2.queryAtLocation(new GeoLocation(location.getLatitude(), location.getLongitude()), 5.0);
-                                                    geoQuery.addGeoQueryEventListener(new GeoQueryEventListener() {
-                                                        @Override
-                                                        public void onKeyEntered(final String key, final GeoLocation location2) {
-                                                            mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("users/rider/" + key);
-                                                            mFirebaseDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
+                                                    if (role.equals("driver")) {
+                                                        if (rideBtn.getText().toString().equals("Ride")) {
+                                                            DatabaseReference databaseReference2 = FirebaseDatabase.getInstance().getReference("/validate/" + id);
+                                                            databaseReference2.addListenerForSingleValueEvent(new ValueEventListener() {
                                                                 @Override
                                                                 public void onDataChange(DataSnapshot dataSnapshot) {
-                                                                    if (dataSnapshot.getChildrenCount() > 0) {
-                                                                        Map<String, Object> itemMap = (HashMap<String, Object>) dataSnapshot.getValue();
-                                                                        dname = (String) itemMap.get("name");
-                                                                        dnum = (String) itemMap.get("contact");
-
-                                                                        Location targetLocation = new Location("");
-                                                                        targetLocation.setLatitude(location2.latitude);
-                                                                        targetLocation.setLongitude(location2.longitude);
-                                                                        dis = location.distanceTo(targetLocation);
-                                                                        dis /= 1000;
-                                                                        dis = (float) Math.round(dis * 100f) / 100f;
-
-                                                                        if (dis < 5.0) {
-                                                                            IconGenerator bubbleIconFactory = new IconGenerator(getApplicationContext());
-                                                                            bubbleIconFactory.setStyle(IconGenerator.STYLE_GREEN);
-                                                                            Bitmap bit = bubbleIconFactory.makeIcon(dis + " KM");
-                                                                            Marker marker = mMap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(bit)).position(new LatLng(location2.latitude, location2.longitude)).title(""));
-                                                                            marker.setTag(key);
-                                                                        }
-
+                                                                    if (dataSnapshot.getValue().equals("yes")) {
                                                                         pDialog.dismiss();
+                                                                        Toast.makeText(MainActivity.this, "Validation is still pending", Toast.LENGTH_SHORT).show();
+                                                                        Toast.makeText(MainActivity.this, "You can start rides after being validated", Toast.LENGTH_LONG).show();
+                                                                    } else {
+                                                                        pDialog.setMessage("Starting ride..");
 
-                                                                    }
-                                                                }
+                                                                        DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("/users/" + role + "/" + id);
+                                                                        databaseReference.child("location").setValue(enterLoc.getText().toString());
 
-                                                                @Override
-                                                                public void onCancelled(DatabaseError databaseError) {
-                                                                    pDialog.dismiss();
-                                                                }
-                                                            });
-                                                            mFirebaseDatabase.keepSynced(true);
-                                                        }
-
-                                                        @Override
-                                                        public void onKeyExited(String key) {
-
-                                                        }
-
-                                                        @Override
-                                                        public void onKeyMoved(String key, GeoLocation location) {
-
-                                                        }
-
-                                                        @Override
-                                                        public void onGeoQueryReady() {
-
-                                                        }
-
-                                                        @Override
-                                                        public void onGeoQueryError(DatabaseError error) {
-
-                                                        }
-                                                    });
-                                                } else {
-                                                    pDialog.setMessage("Searching rides..");
-
-                                                    DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("/users/" + role + "/" + id);
-                                                    databaseReference.child("location").setValue(enterLoc.getText().toString());
-
-                                                    DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/");
-                                                    GeoFire geoFire2 = new GeoFire(ref);
-                                                    geoFire2.setLocation(id, new GeoLocation(latLong.latitude, latLong.longitude));
-
-                                                    mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("geofire/target");
-                                                    GeoFire geoFire = new GeoFire(mFirebaseDatabase);
-                                                    GeoQuery geoQuery = geoFire.queryAtLocation(new GeoLocation(latLong.latitude, latLong.longitude), 5.0);
-                                                    geoQuery.addGeoQueryEventListener(new GeoQueryEventListener() {
-                                                        @Override
-                                                        public void onKeyEntered(final String key, final GeoLocation location2) {
-                                                            mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("users/driver/" + key);
-                                                            mFirebaseDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
-                                                                @Override
-                                                                public void onDataChange(DataSnapshot dataSnapshot) {
-                                                                    if (dataSnapshot.getChildrenCount() > 0) {
-                                                                        Map<String, Object> itemMap = (HashMap<String, Object>) dataSnapshot.getValue();
-                                                                        dname = (String) itemMap.get("name");
-                                                                        dnum = (String) itemMap.get("contact");
-
-                                                                        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/current");
+                                                                        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/target");
                                                                         GeoFire geoFire = new GeoFire(ref);
-                                                                        geoFire.getLocation(key, new LocationCallback() {
+                                                                        geoFire.setLocation(id, new GeoLocation(latLong.latitude, latLong.longitude), new GeoFire.CompletionListener() {
                                                                             @Override
-                                                                            public void onLocationResult(String key, GeoLocation location3) {
-                                                                                if (location3 != null) {
-                                                                                    Location targetLocation = new Location("");
-                                                                                    targetLocation.setLatitude(location3.latitude);
-                                                                                    targetLocation.setLongitude(location3.longitude);
-                                                                                    dis = location.distanceTo(targetLocation);
-                                                                                    dis /= 1000;
-                                                                                    dis = (float) Math.round(dis * 100f) / 100f;
+                                                                            public void onComplete(String key, DatabaseError error) {
+                                                                                DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/current");
+                                                                                GeoFire geoFire = new GeoFire(ref);
+                                                                                geoFire.setLocation(id, new GeoLocation(location.getLatitude(), location.getLongitude()), new GeoFire.CompletionListener() {
+                                                                                    @Override
+                                                                                    public void onComplete(String key, DatabaseError error) {
+                                                                                        pDialog.dismiss();
+                                                                                        Toast.makeText(MainActivity.this, "Submitted to server", Toast.LENGTH_SHORT).show();
+                                                                                        rideBtn.setText("Stop ride");
+                                                                                    }
+                                                                                });
+                                                                            }
+                                                                        });
 
-                                                                                    if (dis < 5.0) {
-                                                                                        IconGenerator bubbleIconFactory = new IconGenerator(getApplicationContext());
-                                                                                        bubbleIconFactory.setStyle(IconGenerator.STYLE_GREEN);
-                                                                                        Bitmap bit = bubbleIconFactory.makeIcon(dis + " KM");
-                                                                                        Marker marker = mMap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(bit)).position(new LatLng(location3.latitude, location3.longitude)).title(""));
-                                                                                        marker.setTag(key);
+                                                                        mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("geofire/interested/" + id);
+                                                                        GeoFire geoFire2 = new GeoFire(mFirebaseDatabase);
+                                                                        GeoQuery geoQuery = geoFire2.queryAtLocation(new GeoLocation(location.getLatitude(), location.getLongitude()), 5.0);
+                                                                        geoQuery.addGeoQueryEventListener(new GeoQueryEventListener() {
+                                                                            @Override
+                                                                            public void onKeyEntered(final String key, final GeoLocation location2) {
+                                                                                mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("users/rider/" + key);
+                                                                                mFirebaseDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
+                                                                                    @Override
+                                                                                    public void onDataChange(DataSnapshot dataSnapshot) {
+                                                                                        if (dataSnapshot.getChildrenCount() > 0) {
+                                                                                            Map<String, Object> itemMap = (HashMap<String, Object>) dataSnapshot.getValue();
+                                                                                            dname = (String) itemMap.get("name");
+                                                                                            dnum = (String) itemMap.get("contact");
+
+                                                                                            Location targetLocation = new Location("");
+                                                                                            targetLocation.setLatitude(location2.latitude);
+                                                                                            targetLocation.setLongitude(location2.longitude);
+                                                                                            dis = location.distanceTo(targetLocation);
+                                                                                            dis /= 1000;
+                                                                                            dis = (float) Math.round(dis * 100f) / 100f;
+
+                                                                                            if (dis < 5.0) {
+                                                                                                IconGenerator bubbleIconFactory = new IconGenerator(getApplicationContext());
+                                                                                                bubbleIconFactory.setStyle(IconGenerator.STYLE_GREEN);
+                                                                                                Bitmap bit = bubbleIconFactory.makeIcon(dis + " KM");
+                                                                                                Marker marker = mMap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(bit)).position(new LatLng(location2.latitude, location2.longitude)).title(""));
+                                                                                                marker.setTag(key);
+                                                                                            }
+
+                                                                                            pDialog.dismiss();
+                                                                                        }
                                                                                     }
 
-                                                                                    pDialog.dismiss();
-                                                                                } else {
-                                                                                    System.out.println(String.format("There is no location for key %s in GeoFire", key));
-                                                                                }
+                                                                                    @Override
+                                                                                    public void onCancelled(DatabaseError databaseError) {
+                                                                                        pDialog.dismiss();
+                                                                                    }
+                                                                                });
+                                                                                mFirebaseDatabase.keepSynced(true);
                                                                             }
 
                                                                             @Override
-                                                                            public void onCancelled(DatabaseError databaseError) {
-                                                                                System.err.println("There was an error getting the GeoFire location: " + databaseError);
-                                                                                pDialog.dismiss();
+                                                                            public void onKeyExited(String key) {
+
+                                                                            }
+
+                                                                            @Override
+                                                                            public void onKeyMoved(String key, GeoLocation location) {
+
+                                                                            }
+
+                                                                            @Override
+                                                                            public void onGeoQueryReady() {
+
+                                                                            }
+
+                                                                            @Override
+                                                                            public void onGeoQueryError(DatabaseError error) {
+
                                                                             }
                                                                         });
                                                                     }
@@ -380,32 +328,158 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
                                                                 @Override
                                                                 public void onCancelled(DatabaseError databaseError) {
+
+                                                                }
+                                                            });
+                                                        } else {
+                                                            AlertDialog.Builder builder2 = new AlertDialog.Builder(MainActivity.this);
+                                                            builder2.setTitle("Stop ride");
+                                                            builder2.setMessage("Are you sure you want to stop this ride?");
+                                                            builder2.setCancelable(false);
+
+                                                            builder2.setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                                                                @Override
+                                                                public void onClick(DialogInterface dialog, int which) {
+                                                                    dialog.dismiss();
+                                                                    pDialog = new ProgressDialog(MainActivity.this);
+                                                                    pDialog.setMessage("Stopping...");
+                                                                    pDialog.setIndeterminate(false);
+                                                                    pDialog.setCancelable(false);
+                                                                    pDialog.show();
+
+                                                                    DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("geofire/interested/" + id);
+                                                                    databaseReference.removeValue();
+
+                                                                    databaseReference = FirebaseDatabase.getInstance().getReference("geofire/target/" + id);
+                                                                    databaseReference.removeValue(new DatabaseReference.CompletionListener() {
+                                                                        @Override
+                                                                        public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+                                                                            pDialog.dismiss();
+                                                                            mMap.clear();
+                                                                            rideBtn.setText("Ride");
+
+                                                                            if (AppData.lastLoc != null) {
+                                                                                LatLng myLoc = null;
+                                                                                myLoc = new LatLng(AppData.lastLoc.getLatitude(), AppData.lastLoc.getLongitude());
+
+                                                                                try {
+                                                                                    myMarker = null;
+                                                                                    myMarker = mMap.addMarker(new MarkerOptions().position(myLoc).
+                                                                                            title("My location")
+                                                                                            .icon(getMarkerIcon("#8b3e58")));
+
+                                                                                    mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(myLoc, 15));
+                                                                                } catch (IllegalArgumentException e) {
+                                                                                    e.printStackTrace();
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    });
+                                                                }
+                                                            });
+                                                            builder2.setNegativeButton("No", new DialogInterface.OnClickListener() {
+                                                                @Override
+                                                                public void onClick(DialogInterface dialog, int which) {
+                                                                    dialog.cancel();
                                                                     pDialog.dismiss();
                                                                 }
                                                             });
-                                                            mFirebaseDatabase.keepSynced(true);
+
+                                                            AlertDialog alertDialog = builder2.create();
+                                                            alertDialog.show();
                                                         }
+                                                    } else {
+                                                        pDialog.setMessage("Searching rides..");
 
-                                                        @Override
-                                                        public void onKeyExited(String key) {
+                                                        DatabaseReference databaseReference = FirebaseDatabase.getInstance().getReference("/users/" + role + "/" + id);
+                                                        databaseReference.child("location").setValue(enterLoc.getText().toString());
 
-                                                        }
+                                                        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/");
+                                                        GeoFire geoFire2 = new GeoFire(ref);
+                                                        geoFire2.setLocation(id, new GeoLocation(latLong.latitude, latLong.longitude));
 
-                                                        @Override
-                                                        public void onKeyMoved(String key, GeoLocation location) {
+                                                        mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("geofire/target");
+                                                        GeoFire geoFire = new GeoFire(mFirebaseDatabase);
+                                                        GeoQuery geoQuery = geoFire.queryAtLocation(new GeoLocation(latLong.latitude, latLong.longitude), 5.0);
+                                                        geoQuery.addGeoQueryEventListener(new GeoQueryEventListener() {
+                                                            @Override
+                                                            public void onKeyEntered(final String key, final GeoLocation location2) {
+                                                                mFirebaseDatabase = FirebaseDatabase.getInstance().getReference().child("users/driver/" + key);
+                                                                mFirebaseDatabase.addListenerForSingleValueEvent(new ValueEventListener() {
+                                                                    @Override
+                                                                    public void onDataChange(DataSnapshot dataSnapshot) {
+                                                                        if (dataSnapshot.getChildrenCount() > 0) {
+                                                                            Map<String, Object> itemMap = (HashMap<String, Object>) dataSnapshot.getValue();
+                                                                            dname = (String) itemMap.get("name");
+                                                                            dnum = (String) itemMap.get("contact");
 
-                                                        }
+                                                                            DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/current");
+                                                                            GeoFire geoFire = new GeoFire(ref);
+                                                                            geoFire.getLocation(key, new LocationCallback() {
+                                                                                @Override
+                                                                                public void onLocationResult(String key, GeoLocation location3) {
+                                                                                    if (location3 != null) {
+                                                                                        Location targetLocation = new Location("");
+                                                                                        targetLocation.setLatitude(location3.latitude);
+                                                                                        targetLocation.setLongitude(location3.longitude);
+                                                                                        dis = location.distanceTo(targetLocation);
+                                                                                        dis /= 1000;
+                                                                                        dis = (float) Math.round(dis * 100f) / 100f;
 
-                                                        @Override
-                                                        public void onGeoQueryReady() {
+                                                                                        if (dis < 5.0) {
+                                                                                            IconGenerator bubbleIconFactory = new IconGenerator(getApplicationContext());
+                                                                                            bubbleIconFactory.setStyle(IconGenerator.STYLE_GREEN);
+                                                                                            Bitmap bit = bubbleIconFactory.makeIcon(dis + " KM");
+                                                                                            Marker marker = mMap.addMarker(new MarkerOptions().icon(BitmapDescriptorFactory.fromBitmap(bit)).position(new LatLng(location3.latitude, location3.longitude)).title(""));
+                                                                                            marker.setTag(key);
+                                                                                        }
 
-                                                        }
+                                                                                        pDialog.dismiss();
+                                                                                    } else {
+                                                                                        System.out.println(String.format("There is no location for key %s in GeoFire", key));
+                                                                                    }
+                                                                                }
 
-                                                        @Override
-                                                        public void onGeoQueryError(DatabaseError error) {
+                                                                                @Override
+                                                                                public void onCancelled(DatabaseError databaseError) {
+                                                                                    System.err.println("There was an error getting the GeoFire location: " + databaseError);
+                                                                                    pDialog.dismiss();
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                    }
 
-                                                        }
-                                                    });
+                                                                    @Override
+                                                                    public void onCancelled(DatabaseError databaseError) {
+                                                                        pDialog.dismiss();
+                                                                    }
+                                                                });
+                                                                mFirebaseDatabase.keepSynced(true);
+                                                            }
+
+                                                            @Override
+                                                            public void onKeyExited(String key) {
+
+                                                            }
+
+                                                            @Override
+                                                            public void onKeyMoved(String key, GeoLocation location) {
+
+                                                            }
+
+                                                            @Override
+                                                            public void onGeoQueryReady() {
+
+                                                            }
+
+                                                            @Override
+                                                            public void onGeoQueryError(DatabaseError error) {
+
+                                                            }
+                                                        });
+                                                    }
+                                                } else {
+                                                    Toast.makeText(MainActivity.this, "Please connect to internet", Toast.LENGTH_SHORT).show();
                                                 }
                                             }
                                         });
@@ -497,22 +571,26 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                                             btn.setOnClickListener(new View.OnClickListener() {
                                                 @Override
                                                 public void onClick(View view) {
-                                                    pDialog = new ProgressDialog(MainActivity.this);
-                                                    pDialog.setMessage("Submitting..");
-                                                    pDialog.setIndeterminate(false);
-                                                    pDialog.setCancelable(true);
-                                                    pDialog.show();
+                                                    if (isNetwork()) {
+                                                        pDialog = new ProgressDialog(MainActivity.this);
+                                                        pDialog.setMessage("Submitting..");
+                                                        pDialog.setIndeterminate(false);
+                                                        pDialog.setCancelable(true);
+                                                        pDialog.show();
 
-                                                    DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/interested/" + marker.getTag());
-                                                    GeoFire geoFire = new GeoFire(ref);
-                                                    geoFire.setLocation(id, new GeoLocation(location.getLatitude(), location.getLongitude()), new GeoFire.CompletionListener() {
-                                                        @Override
-                                                        public void onComplete(String key, DatabaseError error) {
-                                                            pDialog.dismiss();
-                                                            dialog.dismiss();
-                                                            Toast.makeText(MainActivity.this, "Submitted to server", Toast.LENGTH_SHORT).show();
-                                                        }
-                                                    });
+                                                        DatabaseReference ref = FirebaseDatabase.getInstance().getReference("geofire/interested/" + marker.getTag());
+                                                        GeoFire geoFire = new GeoFire(ref);
+                                                        geoFire.setLocation(id, new GeoLocation(location.getLatitude(), location.getLongitude()), new GeoFire.CompletionListener() {
+                                                            @Override
+                                                            public void onComplete(String key, DatabaseError error) {
+                                                                pDialog.dismiss();
+                                                                dialog.dismiss();
+                                                                Toast.makeText(MainActivity.this, "Submitted to server", Toast.LENGTH_SHORT).show();
+                                                            }
+                                                        });
+                                                    } else {
+                                                        Toast.makeText(MainActivity.this, "Please connect to internet", Toast.LENGTH_SHORT).show();
+                                                    }
                                                 }
                                             });
                                         }
@@ -583,29 +661,13 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                             }
 
                             mFirebaseDatabase.keepSynced(true);
-
-                            //                            final Button submit = (Button) dialoglayout.findViewById(R.id.submitButton);
-                            //                            submit.setTypeface(FontsManager.getBoldTypeface(ShowCentresNearMe.this));
-                            //                            submit.setOnClickListener(new View.OnClickListener() {
-                            //                                @Override
-                            //                                public void onClick(View view) {
-                            //                                    dialog.dismiss();
-                            //                                    selectedCenter = (String) marker.getTag();
-                            //                                    if (isNetwork()) {
-                            //                                        raiseRequest();
-                            //                                    }
-                            //                                }
-                            //                            });
-
                             return false;
                         }
                     });
                 }
             } else if (resultCode == PlaceAutocomplete.RESULT_ERROR) {
                 Status status = PlaceAutocomplete.getStatus(this, data);
-                // TODO: Handle the error.
                 Log.i("status", status.getStatusMessage());
-
             } else if (resultCode == RESULT_CANCELED) {
                 // The user canceled the operation.
             }
@@ -714,74 +776,6 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         });
     }
 
-    class PostData extends AsyncTask<String, String, String> {
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
-
-        protected String doInBackground(String... args) {
-            getCurrentName();
-            return null;
-        }
-
-        protected void onPostExecute(String file_url) {
-            if (result != null)
-                enterLoc.setText(result);
-        }
-    }
-
-    private void getCurrentName() {
-        List<Address> addressList = null;
-        StringBuilder sb = new StringBuilder();
-
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        if (null != location) {
-            double longitude = location.getLongitude();
-            double latitude = location.getLatitude();
-
-            Geocoder geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
-            try {
-                if (location != null)
-                    addressList = geocoder.getFromLocation(
-                            latitude, longitude, 1);
-            } catch (IOException e) {
-                Log.e("errrrrrrrrr", e.getMessage());
-                getName(addressList, geocoder, latitude, longitude);
-            }
-        }
-
-        if (place != null)
-            sb.append(place.getName()).append("\n");
-
-        if (addressList != null && addressList.size() > 0) {
-            Address address = addressList.get(0);
-            if (source.equals("auto"))
-                sb.append(place.getName()).append("\n");
-            for (int i = 0; i < address.getMaxAddressLineIndex(); i++) {
-                sb.append(address.getAddressLine(i)).append("\n");
-            }
-            sb.append(address.getLocality()).append("");
-            result = sb.toString();
-        } else
-            result = "My location";
-    }
-
-    private List<Address> getName(List<Address> addressList, Geocoder geocoder, double latitude, double longitude) {
-        try {
-            addressList = geocoder.getFromLocation(
-                    latitude, longitude, 1);
-        } catch (IOException e) {
-            Log.e("errrrrrrrrr", e.getMessage());
-            getName(addressList, geocoder, latitude, longitude);
-        }
-
-        return addressList;
-    }
-
     @Override
     public void onConnected(Bundle bundle) {
         mLocationRequest = LocationRequest.create();
@@ -790,12 +784,6 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
             return;
         }
         LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
@@ -813,6 +801,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     private void updateMyLocation(final GoogleMap googleMap, Location location) {
         mMap = googleMap;
+        AppData.lastLoc = location;
 
         LatLng myLoc = null;
         if (location != null) {
@@ -914,7 +903,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         temp.setText("Number: " + num);
 
         final TextView temp2 = (TextView) dialoglayout.findViewById(R.id.headerTextrole);
-        temp2.setText("Role: " + role);
+        temp2.setVisibility(View.GONE);
 
         final Button temp3 = (Button) dialoglayout.findViewById(R.id.loginButton2);
         temp3.setVisibility(View.GONE);
@@ -930,7 +919,6 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle item selection
         switch (item.getItemId()) {
             case R.id.new_game:
                 showProf();
@@ -942,5 +930,23 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (doubleBackToExitPressedOnce) {
+            super.onBackPressed();
+            return;
+        }
+
+        this.doubleBackToExitPressedOnce = true;
+        Toast.makeText(this, "Click back again to exit", Toast.LENGTH_SHORT).show();
+
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                doubleBackToExitPressedOnce = false;
+            }
+        }, 2000);
     }
 }

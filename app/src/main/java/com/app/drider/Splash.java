@@ -5,6 +5,9 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 
+import com.app.drider.auth.Login;
+import com.app.drider.managers.UserSessionManager;
+
 public class Splash extends AppCompatActivity {
     public Handler handler = new Handler();
     private static final int TIME = 1 * 1000;
