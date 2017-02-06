@@ -396,11 +396,12 @@ public class SignUp extends AppCompatActivity {
                             databaseReference.child("name").setValue("na");
                             databaseReference.child("location").setValue("na");
                             databaseReference.child("contact").setValue("na");
+                            databaseReference.child("mail").setValue(Login_Email);
                             databaseReference.child("fcm").setValue(FirebaseInstanceId.getInstance().getToken());
 
                             if (role.equals("driver")) {
                                 databaseReference = FirebaseDatabase.getInstance().getReference("validate/");
-                                databaseReference.child(user.getUid()).setValue("yes");
+                                databaseReference.child(user.getUid()).setValue("no");
                             }
 
                             session.createUserLoginSession("na", role, "na", user.getUid(), Login_Email, "na");

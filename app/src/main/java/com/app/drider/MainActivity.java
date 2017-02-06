@@ -233,7 +233,7 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                                                             databaseReference2.addListenerForSingleValueEvent(new ValueEventListener() {
                                                                 @Override
                                                                 public void onDataChange(DataSnapshot dataSnapshot) {
-                                                                    if (dataSnapshot.getValue().equals("yes")) {
+                                                                    if (dataSnapshot.getValue().equals("no")) {
                                                                         pDialog.dismiss();
                                                                         Toast.makeText(MainActivity.this, "Validation is still pending", Toast.LENGTH_SHORT).show();
                                                                         Toast.makeText(MainActivity.this, "You can start rides after being validated", Toast.LENGTH_LONG).show();
